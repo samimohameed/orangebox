@@ -1,0 +1,11 @@
+[package]
+name = "blackbox-application"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Application layer: use cases and ports. Depends on the domain only —
+# never on infrastructure. `thiserror` is the one permitted utility crate.
+[dependencies]
+blackbox-domain = { workspace = true }
+thiserror = { workspace = true }
