@@ -78,4 +78,8 @@ pub trait ArchiveRepository: Send {
     fn timeline(&self, limit: usize) -> Result<Vec<SessionSummary>>;
 
     fn stats(&self) -> Result<ArchiveStats>;
+
+    /// One session with all of its messages in order, or `None` when the
+    /// id is unknown. Ids may be given as an unambiguous prefix.
+    fn session_with_messages(&self, session_id: &str) -> Result<Option<(Session, Vec<Message>)>>;
 }

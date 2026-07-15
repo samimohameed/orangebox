@@ -178,9 +178,13 @@ impl ArchiveRepository for SqliteArchive {
             .prepare(
                 "SELECT s.id, s.tool, s.project, s.started_at_ms, s.last_activity_ms,
                         (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id),
-                        (SELECT m.content FROM messages m
-                          WHERE m.session_id = s.id AND m.role = 'user'
-                          ORDER BY m.seq ASC LIMIT 1)
+                        COALESCE(
+                            (SELECT m.content FROM messages m
+                              WHERE m.session_id = s.id AND m.role = 'user'
+                              ORDER BY m.seq ASC LIMIT 1),
+                            (SELECT m.content FROM messages m
+                              WHERE m.session_id = s.id
+                              ORDER BY m.seq ASC LIMIT 1))
                  FROM sessions s
                  ORDER BY s.last_activity_ms DESC
                  LIMIT ?1",
@@ -206,6 +210,71 @@ impl ArchiveRepository for SqliteArchive {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(storage_err)?;
         Ok(rows)
+    }
+
+    fn session_with_messages(&self, session_id: &str) -> Result<Option<(Session, Vec<Message>)>> {
+        // Exact match first, then unambiguous prefix (so users can paste a
+        // short id from the CLI/GUI).
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, tool, project, started_at_ms, last_activity_ms
+                 FROM sessions WHERE id = ?1
+                 UNION ALL
+                 SELECT id, tool, project, started_at_ms, last_activity_ms
+                 FROM sessions WHERE id LIKE ?1 || '%' AND id != ?1
+                 LIMIT 2",
+            )
+            .map_err(storage_err)?;
+        let mut sessions = stmt
+            .query_map(params![session_id], |row| {
+                let tool: String = row.get(1)?;
+                Ok(Session {
+                    id: row.get(0)?,
+                    tool: ToolKind::from_slug(&tool).unwrap_or(ToolKind::ClaudeCode),
+                    project: row.get(2)?,
+                    started_at_ms: row.get(3)?,
+                    last_activity_ms: row.get(4)?,
+                })
+            })
+            .map_err(storage_err)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(storage_err)?;
+
+        let session = match sessions.len() {
+            0 => return Ok(None),
+            1 => sessions.remove(0),
+            _ => {
+                return Err(ArchiveError::InvalidInput(format!(
+                    "\"{session_id}\" matches multiple sessions; use the full id"
+                )))
+            }
+        };
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, role, content, created_at_ms, seq
+                 FROM messages WHERE session_id = ?1 ORDER BY seq ASC",
+            )
+            .map_err(storage_err)?;
+        let messages = stmt
+            .query_map(params![session.id], |row| {
+                let role: String = row.get(1)?;
+                Ok(Message {
+                    id: row.get(0)?,
+                    session_id: session.id.clone(),
+                    role: Role::from_slug(&role).unwrap_or(Role::Assistant),
+                    content: row.get(2)?,
+                    created_at_ms: row.get(3)?,
+                    seq: row.get(4)?,
+                })
+            })
+            .map_err(storage_err)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(storage_err)?;
+
+        Ok(Some((session, messages)))
     }
 
     fn stats(&self) -> Result<ArchiveStats> {

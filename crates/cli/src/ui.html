@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackbox</title>
+<style>
+  :root {
+    --bg: #FBFAF8; --panel: #F3F0EA; --ink: #1C1B1A; --muted: #6B6660;
+    --line: #E7E2DB; --accent: #C24A00; --accent-soft: #C24A0018;
+    --user-bg: #ECE7DF; --mark: #C24A0026;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151412; --panel: #1D1B18; --ink: #EDE9E3; --muted: #9A948B;
+      --line: #2B2825; --accent: #FF8A3D; --accent-soft: #FF8A3D1c;
+      --user-bg: #24211d; --mark: #FF8A3D2e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 system-ui, -apple-system, sans-serif;
+    height: 100vh; display: grid; grid-template-columns: 340px 1fr;
+  }
+  code, .mono { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.86em; }
+
+  /* ---- sidebar ---- */
+  aside {
+    border-right: 1px solid var(--line); background: var(--panel);
+    display: flex; flex-direction: column; min-height: 0;
+  }
+  .brand {
+    display: flex; align-items: baseline; gap: 8px; padding: 16px 16px 10px;
+  }
+  .brand h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+  .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); align-self: center; }
+  .brand small { color: var(--muted); font-size: 11px; }
+  .searchbox { padding: 0 12px 10px; }
+  .searchbox input {
+    width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); font: inherit; outline: none;
+  }
+  .searchbox input:focus { border-color: var(--accent); }
+  nav { overflow-y: auto; flex: 1; padding: 4px 8px 8px; }
+  .item {
+    padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px;
+  }
+  .item:hover { background: var(--accent-soft); }
+  .item.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+  .item .top { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--muted); }
+  .item .tool { color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; }
+  .item .title {
+    margin-top: 2px; overflow: hidden; display: -webkit-box;
+    -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  .item .snip mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+  footer {
+    padding: 10px 16px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--muted);
+  }
+
+  /* ---- main ---- */
+  main { display: flex; flex-direction: column; min-height: 0; }
+  .empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: var(--muted); gap: 8px; text-align: center; padding: 40px;
+  }
+  .empty .big { font-size: 40px; }
+  header.session {
+    padding: 14px 24px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  header.session .info { flex: 1; min-width: 200px; }
+  header.session h2 { margin: 0; font-size: 15px; letter-spacing: -0.01em; }
+  header.session .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:hover { filter: brightness(1.06); }
+  .recovery-hint {
+    padding: 10px 24px; font-size: 12.5px; color: var(--muted);
+    border-bottom: 1px solid var(--line); background: var(--accent-soft);
+  }
+  .recovery-hint code { user-select: all; }
+  .transcript { overflow-y: auto; flex: 1; padding: 20px 24px 40px; }
+  .msg { max-width: 78ch; margin: 0 auto 14px; }
+  .msg .who {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); margin-bottom: 3px;
+  }
+  .msg.user .who { color: var(--accent); }
+  .msg .body {
+    white-space: pre-wrap; overflow-wrap: break-word; border-radius: 10px;
+    padding: 10px 14px; border: 1px solid var(--line); background: var(--panel);
+  }
+  .msg.user .body { background: var(--user-bg); }
+  .toast {
+    position: fixed; bottom: 18px; right: 18px; background: var(--ink); color: var(--bg);
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 720px) { body { grid-template-columns: 1fr; } main { display: none; } }
+</style>
+</head>
+<body>
+<aside>
+  <div class="brand"><span class="dot"></span><h1>Blackbox</h1><small>flight recorder</small></div>
+  <div class="searchbox">
+    <input id="search" type="search" placeholder="Search every conversation…" autocomplete="off">
+  </div>
+  <nav id="list"></nav>
+  <footer id="status">loading…</footer>
+</aside>
+<main id="main">
+  <div class="empty" id="emptyState">
+    <div class="big">📼</div>
+    <div><strong>Pick a session</strong></div>
+    <div>Everything your AI tools said is recorded here —<br>even if the tool itself lost it.</div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let current = null;
+
+const fmt = (ms) => ms ? new Date(ms).toLocaleString([], {dateStyle:'medium', timeStyle:'short'}) : '';
+const projName = (p) => p ? p.split('/').filter(Boolean).pop() : 'unknown project';
+
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function esc(s) {
+  const d = document.createElement('span');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+  return r.json();
+}
+
+function renderList(items, isSearch) {
+  const nav = $('list');
+  nav.innerHTML = '';
+  if (!items.length) {
+    nav.innerHTML = '<div class="item" style="color:var(--muted)">' +
+      (isSearch ? 'No matches.' : 'Archive is empty — run <code>blackbox scan</code>.') + '</div>';
+    return;
+  }
+  for (const it of items) {
+    const div = document.createElement('div');
+    div.className = 'item' + (current === it.id ? ' active' : '');
+    const when = fmt(it.last_activity_ms || it.created_at_ms);
+    const proj = projName(it.session ? it.session.project : it.project);
+    const tool = it.session ? it.session.tool : it.tool;
+    let body;
+    if (isSearch) {
+      body = '<div class="title snip">' +
+        esc(it.snippet).replaceAll('&gt;&gt;', '<mark>').replaceAll('&lt;&lt;', '</mark>') + '</div>';
+    } else {
+      body = '<div class="title">' + esc(it.title || '(no user message)') + '</div>';
+    }
+    div.innerHTML =
+      '<div class="top"><span class="tool">' + esc(tool) + '</span><span>' + esc(proj) + ' · ' + when + '</span></div>' + body;
+    div.onclick = () => openSession(it.session ? it.session.id : it.id);
+    nav.appendChild(div);
+  }
+}
+
+async function loadTimeline() {
+  renderList(await api('/api/timeline?n=200'), false);
+}
+
+async function runSearch(q) {
+  if (!q.trim()) return loadTimeline();
+  renderList(await api('/api/search?q=' + encodeURIComponent(q)), true);
+}
+
+async function openSession(id) {
+  current = id;
+  const data = await api('/api/session?id=' + encodeURIComponent(id));
+  const s = data.session;
+  const main = $('main');
+  const nativeId = s.id.replace(/^[a-z-]+:/, '');
+
+  let hint;
+  if (s.tool === 'claude-code') {
+    hint = 'Native resume available — run <code>claude --resume ' + esc(nativeId) +
+           '</code> in <code>' + esc(s.project || '~') + '</code>, or use the recovery prompt.';
+  } else if (s.tool === 'antigravity') {
+    hint = 'Antigravity keeps full trajectories on its servers — locally Blackbox has the summary. ' +
+           'To recover: copy the recovery prompt and paste it into a new Antigravity agent session.';
+  } else {
+    hint = 'Copy the recovery prompt and paste it into a new session to restore this context.';
+  }
+
+  main.innerHTML =
+    '<header class="session">' +
+      '<div class="info"><h2>' + esc(projName(s.project)) + '</h2>' +
+      '<div class="meta">' + esc(s.tool) + ' · ' + fmt(s.started_at_ms) + ' → ' + fmt(s.last_activity_ms) +
+      ' · ' + data.messages.length + ' message(s) · <span class="mono">' + esc(nativeId.slice(0, 8)) + '…</span></div></div>' +
+      '<div class="actions">' +
+        '<button class="primary" id="copyBtn">Copy recovery prompt</button>' +
+        '<a href="/api/export?id=' + encodeURIComponent(s.id) + '" download><button>Download .md</button></a>' +
+      '</div>' +
+    '</header>' +
+    '<div class="recovery-hint">' + hint + '</div>' +
+    '<div class="transcript" id="transcript"></div>';
+
+  const t = $('transcript');
+  for (const m of data.messages) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + m.role;
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = (m.role === 'user' ? 'You' : m.role) + ' · ' + fmt(m.created_at_ms);
+    const body = document.createElement('div');
+    body.className = 'body';
+    body.textContent = m.content;
+    div.append(who, body);
+    t.appendChild(div);
+  }
+
+  $('copyBtn').onclick = async () => {
+    const r = await fetch('/api/export?id=' + encodeURIComponent(s.id));
+    await navigator.clipboard.writeText(await r.text());
+    toast('Recovery prompt copied — paste it into a new session');
+  };
+
+  document.querySelectorAll('.item').forEach(el => el.classList.remove('active'));
+  if ($('search').value.trim() === '') loadTimeline();
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  $('status').textContent =
+    s.messages.toLocaleString() + ' messages · ' + s.sessions + ' sessions · recording';
+}
+
+let debounce;
+$('search').addEventListener('input', (e) => {
+  clearTimeout(debounce);
+  debounce = setTimeout(() => runSearch(e.target.value).catch(err => toast(err.message)), 250);
+});
+
+loadTimeline().catch(err => toast(err.message));
+loadStatus().catch(() => {});
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>

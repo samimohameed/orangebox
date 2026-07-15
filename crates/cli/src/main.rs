@@ -6,8 +6,11 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+mod ui;
+
 use blackbox_application::ports::ToolAdapter;
 use blackbox_application::usecases;
+use blackbox_infrastructure::adapters::antigravity::AntigravityAdapter;
 use blackbox_infrastructure::adapters::claude_code::ClaudeCodeAdapter;
 use blackbox_infrastructure::sqlite::SqliteArchive;
 use blackbox_infrastructure::watcher::FsWatcher;
@@ -44,14 +47,31 @@ enum Command {
     },
     /// Archive statistics.
     Status,
+    /// Print one session's full transcript.
+    Show { session_id: String },
+    /// Export a session as a Markdown recovery document.
+    Export {
+        session_id: String,
+        /// Write to a file instead of stdout.
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
+    /// Open the local web UI (keeps recording while open).
+    Ui {
+        #[arg(short, long, default_value_t = 7171)]
+        port: u16,
+    },
 }
 
-fn adapters() -> Vec<Box<dyn ToolAdapter>> {
+pub(crate) fn adapters() -> Vec<Box<dyn ToolAdapter>> {
     let mut list: Vec<Box<dyn ToolAdapter>> = Vec::new();
     if let Some(claude) = ClaudeCodeAdapter::new_default() {
         list.push(Box::new(claude));
     }
-    // Phase 2: Antigravity. Phase 4: Cursor, Copilot.
+    if let Some(antigravity) = AntigravityAdapter::new_default() {
+        list.push(Box::new(antigravity));
+    }
+    // Phase 4: Cursor, Copilot.
     list
 }
 
@@ -98,6 +118,12 @@ fn main() {
         Command::Search { query, limit } => cmd_search(&archive, &query.join(" "), limit),
         Command::Timeline { limit } => cmd_timeline(&archive, limit),
         Command::Status => cmd_status(&archive, &db_path),
+        Command::Show { session_id } => cmd_show(&archive, &session_id),
+        Command::Export { session_id, out } => cmd_export(&archive, &session_id, out),
+        Command::Ui { port } => {
+            drop(archive); // the UI opens its own connections
+            ui::serve(db_path, port)
+        }
     };
 
     if let Err(e) = result {
@@ -221,6 +247,42 @@ fn cmd_status(archive: &SqliteArchive, db_path: &PathBuf) -> blackbox_applicatio
     println!("messages: {}", stats.messages);
     for (tool, count) in &stats.tools {
         println!("  {tool}: {count} session(s)");
+    }
+    Ok(())
+}
+
+fn cmd_show(archive: &SqliteArchive, session_id: &str) -> blackbox_application::Result<()> {
+    let (session, messages) = usecases::transcript(archive, session_id)?;
+    println!(
+        "{} · {} · {} message(s)\n",
+        session.tool.slug(),
+        session.project.as_deref().unwrap_or("unknown project"),
+        messages.len()
+    );
+    for m in &messages {
+        println!("── {} · {}", m.role.slug(), fmt_ts(m.created_at_ms));
+        println!("{}\n", m.content.trim());
+    }
+    Ok(())
+}
+
+fn cmd_export(
+    archive: &SqliteArchive,
+    session_id: &str,
+    out: Option<PathBuf>,
+) -> blackbox_application::Result<()> {
+    let md = usecases::export_markdown(archive, session_id)?;
+    match out {
+        Some(path) => {
+            std::fs::write(&path, &md).map_err(|e| {
+                blackbox_application::ArchiveError::Storage(format!(
+                    "write {}: {e}",
+                    path.display()
+                ))
+            })?;
+            println!("exported to {}", path.display());
+        }
+        None => print!("{md}"),
     }
     Ok(())
 }

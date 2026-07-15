@@ -38,17 +38,42 @@ truncated JSON). Parsers must skip unparseable lines, never fail the file.
 
 - VS Code-lineage layout: `User/globalStorage/state.vscdb` (SQLite),
   per-workspace `User/workspaceStorage/<hash>/state.vscdb`.
-- Agent trajectory data found locally so far: key
+- Agent trajectory data found locally: key
   `antigravityUnifiedStateSync.trajectorySummaries` in the global
-  `state.vscdb` `ItemTable` — base64-encoded protobuf, ~17 KB, summaries
-  only (ids, titles, terminal snippets, file paths). Full trajectory
-  content was NOT found on disk; presumed in-memory + server-side.
-- Also relevant: `Backups/` (hot-exit unsaved buffers), `User/History/`
-  (local file edit history — captures agent-written plans in files).
+  `state.vscdb` `ItemTable` — base64 text of protobuf, summaries only.
+  Full trajectory content was NOT found on disk; presumed in-memory +
+  server-side.
+- Also relevant (not yet ingested): `Backups/` (hot-exit unsaved
+  buffers), `User/History/` (local file edit history — captures
+  agent-written plans in files).
+
+**Decoded structure** (mapped 2026-07-16 by wire-format walking; no
+vendor `.proto` files used):
+
+```
+outer blob:  repeated field 1 (entry) {
+  1: trajectory uuid (str)
+  2: { 1: base64(inner summary) }        # double-encoded!
+}
+inner summary: {
+  1:  title (str) — or raw terminal-output text for terminal entries
+  2:  step count (varint)
+  3:  timestamp {1: unix secs, 2: nanos} — last activity
+  4:  conversation uuid (str)
+  7:  timestamp — created at
+  9:  { 1: workspace URI "file:///..." }
+  10: timestamp — another activity marker
+  16: secondary counter; 17: workspace metadata msg; 22: enum
+}
+```
+
+Adapter behavior: ingest via copy-then-read of the `.vscdb` (+ WAL/SHM
+sidecars), one session per trajectory, one summary message per session.
+Unknown/corrupt blobs degrade to an empty batch with a warning, never an
+error.
 
 **Open questions (Phase 0 experiment):** what survives `kill -9`
-mid-session, online vs offline; protobuf field map of a trajectory
-summary (`protoc --decode_raw`).
+mid-session, online vs offline.
 
 ## Cursor (not yet observed on this machine)
 
