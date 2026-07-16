@@ -84,7 +84,7 @@ pub fn walk(buf: &[u8]) -> Option<Vec<Field>> {
 }
 
 /// First occurrence of `number` in `fields`.
-pub fn first<'a>(fields: &'a [Field], number: u64) -> Option<&'a Value> {
+pub fn first(fields: &[Field], number: u64) -> Option<&Value> {
     fields.iter().find(|f| f.number == number).map(|f| &f.value)
 }
 

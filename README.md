@@ -1,5 +1,7 @@
 # Blackbox 📼
 
+![CI](https://github.com/samimohameed/blackbox/actions/workflows/ci.yml/badge.svg)
+
 **A flight recorder for AI coding sessions.** Blackbox watches the local
 storage of AI coding tools (Claude Code today; Antigravity, Cursor and
 Copilot next) and journals every conversation into a crash-safe, searchable
@@ -8,6 +10,50 @@ never costs you a conversation or an implementation plan again.
 
 **Local-only, forever.** Blackbox makes no network calls, sends no
 telemetry, and never writes to any tool's storage — it only reads.
+
+![Blackbox demo: search every conversation, open a recovered Antigravity trajectory, copy the recovery prompt](docs/demo.gif)
+
+## Supported tools
+
+| Tool | What gets recorded | Status |
+| --- | --- | --- |
+| Claude Code | Full conversations (JSONL journal) | ✅ |
+| Antigravity IDE | Full trajectories: prompts, model reasoning, tool activity, file edits, terminal output | ✅ (trajectories before ~May 2026 use an older format, summaries only) |
+| Cursor | — | planned |
+| VS Code Copilot Chat | — | planned |
+
+**Platform:** macOS today. The core is portable Rust; Windows/Linux need
+only the per-tool storage paths — contributions welcome.
+
+## Getting started
+
+Requires the [Rust toolchain](https://rustup.rs) (1.80+). No Node or other
+runtime needed — the web UI ships prebuilt inside the binary.
+
+```sh
+git clone https://github.com/samimohameed/blackbox
+cd blackbox
+cargo install --path crates/cli
+```
+
+Then:
+
+```sh
+blackbox scan   # backfill everything your tools already have on disk
+blackbox ui     # open http://127.0.0.1:7171 — browse, search, recover
+```
+
+`scan` is idempotent — run it as often as you like. `ui` keeps recording
+in the background while it's open; for terminal-only recording use
+`blackbox watch`.
+
+### Crash-safety, verified
+
+The archive uses SQLite in WAL mode. `kill -9` mid-ingestion leaves a
+consistent database (`PRAGMA integrity_check` passes) and the next scan
+picks up exactly what was missed — no duplicates, no corruption. Recorded
+conversations are stored as-is (they are already plaintext in each tool's
+own storage); secret redaction is on the roadmap.
 
 ## Usage
 

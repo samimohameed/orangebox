@@ -252,7 +252,7 @@ fn cmd_timeline(
 
 fn cmd_status(
     archive: &ArchiveService<SqliteArchive>,
-    db_path: &PathBuf,
+    db_path: &std::path::Path,
 ) -> blackbox_application::Result<()> {
     let stats = archive.stats()?;
     println!("archive: {}", db_path.display());
