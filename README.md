@@ -50,9 +50,14 @@ inner layers cannot reference outer ones because Cargo won't let them:
 ```
 crates/
   domain/          entities (Session, Message, ToolKind) — zero dependencies
-  application/     use cases + ports (ToolAdapter, ArchiveRepository)
-  infrastructure/  SQLite (WAL + FTS5), tool adapters, file watcher
-  cli/             clap binary — the composition root
+  application/     ports (ToolAdapter, ArchiveRepository interfaces) +
+                   services (RecorderService, ArchiveService) with
+                   constructor-injected dependencies
+  infrastructure/  SQLite repository (WAL + FTS5), tool adapters, watcher
+  cli/             clap binary + web server — the composition root, where
+                   concrete types are constructed and injected; HTTP DTOs
+                   live in src/dto/
+ui/                React + TypeScript + Vite app, embedded into the binary
 ```
 
 Ground rules:

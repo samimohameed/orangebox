@@ -1,78 +1,24 @@
 //! Local web UI: `blackbox ui`.
 //!
-//! Serves an embedded single-page app on 127.0.0.1 and answers JSON API
-//! requests by calling the same application use cases as the CLI commands.
-//! While the UI is open, a background thread keeps watching tool storage,
-//! so viewing and recording are one process.
+//! Serves the embedded React app on 127.0.0.1 and answers JSON API
+//! requests through the same application services as the CLI commands.
+//! While the UI is open, a background thread keeps recording, so viewing
+//! and recording are one process.
 
 use std::path::PathBuf;
 use std::time::Duration;
 
-use blackbox_application::usecases;
+use blackbox_application::services::{ArchiveService, RecorderService};
 use blackbox_infrastructure::sqlite::SqliteArchive;
 use blackbox_infrastructure::watcher::FsWatcher;
-use serde::Serialize;
 use tiny_http::{Header, Response, Server};
+
+use crate::dto::{HitDto, StatusDto, SummaryDto, TranscriptDto};
 
 // The React app (ui/ at the repo root), built by `npm run build` into a
 // single self-contained file and embedded at compile time. The built file
 // is committed so `cargo install` works without a JS toolchain.
 const PAGE: &str = include_str!("../../../ui/dist/index.html");
-
-#[derive(Serialize)]
-struct SessionDto {
-    id: String,
-    tool: &'static str,
-    project: Option<String>,
-    started_at_ms: i64,
-    last_activity_ms: i64,
-}
-
-#[derive(Serialize)]
-struct SummaryDto {
-    #[serde(flatten)]
-    session: SessionDto,
-    message_count: i64,
-    title: Option<String>,
-}
-
-#[derive(Serialize)]
-struct MessageDto {
-    role: &'static str,
-    content: String,
-    created_at_ms: i64,
-}
-
-#[derive(Serialize)]
-struct HitDto {
-    session: SessionDto,
-    snippet: String,
-    role: &'static str,
-    created_at_ms: i64,
-}
-
-#[derive(Serialize)]
-struct TranscriptDto {
-    session: SessionDto,
-    messages: Vec<MessageDto>,
-}
-
-#[derive(Serialize)]
-struct StatusDto {
-    sessions: i64,
-    messages: i64,
-    tools: Vec<(String, i64)>,
-}
-
-fn session_dto(s: &blackbox_domain::Session) -> SessionDto {
-    SessionDto {
-        id: s.id.clone(),
-        tool: s.tool.slug(),
-        project: s.project.clone(),
-        started_at_ms: s.started_at_ms,
-        last_activity_ms: s.last_activity_ms,
-    }
-}
 
 fn percent_decode(input: &str) -> String {
     let bytes = input.as_bytes();
@@ -130,23 +76,22 @@ fn error_response(status: u16, message: &str) -> Response<std::io::Cursor<Vec<u8
         .with_status_code(status)
 }
 
-/// Start the background recording thread: its own archive connection
+/// Start the background recording thread: its own repository connection
 /// (SQLite WAL supports concurrent writer + readers) and its own adapters.
 fn spawn_recorder(db_path: PathBuf) {
     std::thread::spawn(move || {
-        let adapters = crate::adapters();
-        let mut archive = match SqliteArchive::open(&db_path) {
+        let repo = match SqliteArchive::open(&db_path) {
             Ok(a) => a,
             Err(e) => {
                 tracing::error!("recorder thread: cannot open archive: {e}");
                 return;
             }
         };
-        if let Err(e) = usecases::scan_all(&adapters, &mut archive) {
+        let mut recorder = RecorderService::new(repo, crate::adapters());
+        if let Err(e) = recorder.scan_all() {
             tracing::warn!("recorder backfill failed: {e}");
         }
-        let roots: Vec<PathBuf> = adapters.iter().flat_map(|a| a.watch_roots()).collect();
-        let watcher = match FsWatcher::watch(&roots, Duration::from_secs(2)) {
+        let watcher = match FsWatcher::watch(&recorder.watch_roots(), Duration::from_secs(2)) {
             Ok(w) => w,
             Err(e) => {
                 tracing::error!("recorder thread: watcher failed: {e}");
@@ -155,7 +100,7 @@ fn spawn_recorder(db_path: PathBuf) {
         };
         while let Some(paths) = watcher.next_changed_paths() {
             for path in paths {
-                if let Err(e) = usecases::ingest_changed_path(&adapters, &path, &mut archive) {
+                if let Err(e) = recorder.ingest_changed_path(&path) {
                     tracing::warn!(path = %path.display(), "ingest failed: {e}");
                 }
             }
@@ -164,7 +109,7 @@ fn spawn_recorder(db_path: PathBuf) {
 }
 
 pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
-    let archive = SqliteArchive::open(&db_path)?;
+    let archive = ArchiveService::new(SqliteArchive::open(&db_path)?);
     spawn_recorder(db_path);
 
     let addr = format!("127.0.0.1:{port}");
@@ -184,16 +129,9 @@ pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
                 let limit = query_param(&url, "n")
                     .and_then(|n| n.parse().ok())
                     .unwrap_or(100);
-                match usecases::timeline(&archive, limit) {
+                match archive.timeline(limit) {
                     Ok(items) => {
-                        let dto: Vec<SummaryDto> = items
-                            .iter()
-                            .map(|s| SummaryDto {
-                                session: session_dto(&s.session),
-                                message_count: s.message_count,
-                                title: s.first_user_message.clone(),
-                            })
-                            .collect();
+                        let dto: Vec<SummaryDto> = items.iter().map(SummaryDto::from).collect();
                         json_response(serde_json::to_string(&dto).unwrap())
                     }
                     Err(e) => error_response(500, &e.to_string()),
@@ -201,17 +139,9 @@ pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
             }
             "/api/search" => {
                 let q = query_param(&url, "q").unwrap_or_default();
-                match usecases::search(&archive, &q, 50) {
+                match archive.search(&q, 50) {
                     Ok(hits) => {
-                        let dto: Vec<HitDto> = hits
-                            .iter()
-                            .map(|h| HitDto {
-                                session: session_dto(&h.session),
-                                snippet: h.snippet.clone(),
-                                role: h.message.role.slug(),
-                                created_at_ms: h.message.created_at_ms,
-                            })
-                            .collect();
+                        let dto: Vec<HitDto> = hits.iter().map(HitDto::from).collect();
                         json_response(serde_json::to_string(&dto).unwrap())
                     }
                     Err(e) => error_response(400, &e.to_string()),
@@ -219,19 +149,9 @@ pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
             }
             "/api/session" => {
                 let id = query_param(&url, "id").unwrap_or_default();
-                match usecases::transcript(&archive, &id) {
-                    Ok((session, messages)) => {
-                        let dto = TranscriptDto {
-                            session: session_dto(&session),
-                            messages: messages
-                                .iter()
-                                .map(|m| MessageDto {
-                                    role: m.role.slug(),
-                                    content: m.content.clone(),
-                                    created_at_ms: m.created_at_ms,
-                                })
-                                .collect(),
-                        };
+                match archive.transcript(&id) {
+                    Ok(transcript) => {
+                        let dto = TranscriptDto::from(&transcript);
                         json_response(serde_json::to_string(&dto).unwrap())
                     }
                     Err(e) => error_response(404, &e.to_string()),
@@ -239,7 +159,7 @@ pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
             }
             "/api/export" => {
                 let id = query_param(&url, "id").unwrap_or_default();
-                match usecases::export_markdown(&archive, &id) {
+                match archive.export_markdown(&id) {
                     Ok(md) => Response::from_string(md)
                         .with_header(
                             Header::from_bytes(
@@ -258,13 +178,9 @@ pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
                     Err(e) => error_response(404, &e.to_string()),
                 }
             }
-            "/api/status" => match usecases::stats(&archive) {
-                Ok(s) => {
-                    let dto = StatusDto {
-                        sessions: s.sessions,
-                        messages: s.messages,
-                        tools: s.tools,
-                    };
+            "/api/status" => match archive.stats() {
+                Ok(stats) => {
+                    let dto = StatusDto::from(stats);
                     json_response(serde_json::to_string(&dto).unwrap())
                 }
                 Err(e) => error_response(500, &e.to_string()),

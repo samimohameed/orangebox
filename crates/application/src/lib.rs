@@ -6,7 +6,7 @@
 //! them into the use cases (composition root).
 
 pub mod ports;
-pub mod usecases;
+pub mod services;
 
 use thiserror::Error;
 

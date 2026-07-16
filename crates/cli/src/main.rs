@@ -1,15 +1,17 @@
 //! Blackbox CLI — composition root.
 //!
 //! This binary is the only place where concrete infrastructure (SQLite,
-//! adapters, watcher) is wired into the application use cases.
+//! adapters, watcher) is constructed and injected into the application
+//! services.
+
+mod dto;
+mod ui;
 
 use std::path::PathBuf;
 use std::time::Duration;
 
-mod ui;
-
 use blackbox_application::ports::ToolAdapter;
-use blackbox_application::usecases;
+use blackbox_application::services::{ArchiveService, RecorderService};
 use blackbox_infrastructure::adapters::antigravity::AntigravityAdapter;
 use blackbox_infrastructure::adapters::claude_code::ClaudeCodeAdapter;
 use blackbox_infrastructure::sqlite::SqliteArchive;
@@ -63,6 +65,7 @@ enum Command {
     },
 }
 
+/// Every tool adapter available on this machine, ready for injection.
 pub(crate) fn adapters() -> Vec<Box<dyn ToolAdapter>> {
     let mut list: Vec<Box<dyn ToolAdapter>> = Vec::new();
     if let Some(claude) = ClaudeCodeAdapter::new_default() {
@@ -93,6 +96,10 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+fn short_project(path: &str) -> String {
+    path.rsplit('/').next().unwrap_or(path).to_string()
+}
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -104,7 +111,7 @@ fn main() {
     let cli = Cli::parse();
     let db_path = cli.db.unwrap_or_else(blackbox_infrastructure::default_db_path);
 
-    let mut archive = match SqliteArchive::open(&db_path) {
+    let repo = match SqliteArchive::open(&db_path) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("error: cannot open archive at {}: {e}", db_path.display());
@@ -113,15 +120,19 @@ fn main() {
     };
 
     let result = match cli.command {
-        Command::Scan => cmd_scan(&mut archive),
-        Command::Watch => cmd_watch(&mut archive),
-        Command::Search { query, limit } => cmd_search(&archive, &query.join(" "), limit),
-        Command::Timeline { limit } => cmd_timeline(&archive, limit),
-        Command::Status => cmd_status(&archive, &db_path),
-        Command::Show { session_id } => cmd_show(&archive, &session_id),
-        Command::Export { session_id, out } => cmd_export(&archive, &session_id, out),
+        Command::Scan => cmd_scan(RecorderService::new(repo, adapters())),
+        Command::Watch => cmd_watch(RecorderService::new(repo, adapters())),
+        Command::Search { query, limit } => {
+            cmd_search(&ArchiveService::new(repo), &query.join(" "), limit)
+        }
+        Command::Timeline { limit } => cmd_timeline(&ArchiveService::new(repo), limit),
+        Command::Status => cmd_status(&ArchiveService::new(repo), &db_path),
+        Command::Show { session_id } => cmd_show(&ArchiveService::new(repo), &session_id),
+        Command::Export { session_id, out } => {
+            cmd_export(&ArchiveService::new(repo), &session_id, out)
+        }
         Command::Ui { port } => {
-            drop(archive); // the UI opens its own connections
+            drop(repo); // the UI opens its own connections
             ui::serve(db_path, port)
         }
     };
@@ -132,9 +143,8 @@ fn main() {
     }
 }
 
-fn cmd_scan(archive: &mut SqliteArchive) -> blackbox_application::Result<()> {
-    let adapters = adapters();
-    let reports = usecases::scan_all(&adapters, archive)?;
+fn cmd_scan(mut recorder: RecorderService<SqliteArchive>) -> blackbox_application::Result<()> {
+    let reports = recorder.scan_all()?;
     let mut total_new = 0usize;
     for r in &reports {
         if r.new_messages > 0 {
@@ -150,20 +160,17 @@ fn cmd_scan(archive: &mut SqliteArchive) -> blackbox_application::Result<()> {
     Ok(())
 }
 
-fn cmd_watch(archive: &mut SqliteArchive) -> blackbox_application::Result<()> {
-    let adapters = adapters();
-
+fn cmd_watch(mut recorder: RecorderService<SqliteArchive>) -> blackbox_application::Result<()> {
     // Catch up on anything written while we weren't running, then tail.
-    let reports = usecases::scan_all(&adapters, archive)?;
+    let reports = recorder.scan_all()?;
     let backfilled: usize = reports.iter().map(|r| r.new_messages).sum();
     println!("backfill: {backfilled} new message(s); watching for changes (ctrl-c to stop)");
 
-    let roots: Vec<PathBuf> = adapters.iter().flat_map(|a| a.watch_roots()).collect();
-    let watcher = FsWatcher::watch(&roots, Duration::from_secs(2))?;
+    let watcher = FsWatcher::watch(&recorder.watch_roots(), Duration::from_secs(2))?;
 
     while let Some(paths) = watcher.next_changed_paths() {
         for path in paths {
-            match usecases::ingest_changed_path(&adapters, &path, archive) {
+            match recorder.ingest_changed_path(&path) {
                 Ok(Some(report)) if report.new_messages > 0 => {
                     println!(
                         "[{}] {} · {} new message(s)",
@@ -181,11 +188,11 @@ fn cmd_watch(archive: &mut SqliteArchive) -> blackbox_application::Result<()> {
 }
 
 fn cmd_search(
-    archive: &SqliteArchive,
+    archive: &ArchiveService<SqliteArchive>,
     query: &str,
     limit: usize,
 ) -> blackbox_application::Result<()> {
-    let hits = usecases::search(archive, query, limit)?;
+    let hits = archive.search(query, limit)?;
     if hits.is_empty() {
         println!("no matches for \"{query}\"");
         return Ok(());
@@ -210,8 +217,11 @@ fn cmd_search(
     Ok(())
 }
 
-fn cmd_timeline(archive: &SqliteArchive, limit: usize) -> blackbox_application::Result<()> {
-    let sessions = usecases::timeline(archive, limit)?;
+fn cmd_timeline(
+    archive: &ArchiveService<SqliteArchive>,
+    limit: usize,
+) -> blackbox_application::Result<()> {
+    let sessions = archive.timeline(limit)?;
     if sessions.is_empty() {
         println!("archive is empty — run `blackbox scan` first");
         return Ok(());
@@ -240,8 +250,11 @@ fn cmd_timeline(archive: &SqliteArchive, limit: usize) -> blackbox_application::
     Ok(())
 }
 
-fn cmd_status(archive: &SqliteArchive, db_path: &PathBuf) -> blackbox_application::Result<()> {
-    let stats = usecases::stats(archive)?;
+fn cmd_status(
+    archive: &ArchiveService<SqliteArchive>,
+    db_path: &PathBuf,
+) -> blackbox_application::Result<()> {
+    let stats = archive.stats()?;
     println!("archive: {}", db_path.display());
     println!("sessions: {}", stats.sessions);
     println!("messages: {}", stats.messages);
@@ -251,8 +264,11 @@ fn cmd_status(archive: &SqliteArchive, db_path: &PathBuf) -> blackbox_applicatio
     Ok(())
 }
 
-fn cmd_show(archive: &SqliteArchive, session_id: &str) -> blackbox_application::Result<()> {
-    let (session, messages) = usecases::transcript(archive, session_id)?;
+fn cmd_show(
+    archive: &ArchiveService<SqliteArchive>,
+    session_id: &str,
+) -> blackbox_application::Result<()> {
+    let (session, messages) = archive.transcript(session_id)?;
     println!(
         "{} · {} · {} message(s)\n",
         session.tool.slug(),
@@ -267,11 +283,11 @@ fn cmd_show(archive: &SqliteArchive, session_id: &str) -> blackbox_application::
 }
 
 fn cmd_export(
-    archive: &SqliteArchive,
+    archive: &ArchiveService<SqliteArchive>,
     session_id: &str,
     out: Option<PathBuf>,
 ) -> blackbox_application::Result<()> {
-    let md = usecases::export_markdown(archive, session_id)?;
+    let md = archive.export_markdown(session_id)?;
     match out {
         Some(path) => {
             std::fs::write(&path, &md).map_err(|e| {
@@ -285,8 +301,4 @@ fn cmd_export(
         None => print!("{md}"),
     }
     Ok(())
-}
-
-fn short_project(path: &str) -> String {
-    path.rsplit('/').next().unwrap_or(path).to_string()
 }
