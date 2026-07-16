@@ -122,7 +122,21 @@ fn short_project(path: &str) -> String {
     path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
 }
 
+/// Rust ignores SIGPIPE by default, turning `orangebox timeline | head`
+/// into a broken-pipe panic. Restore the conventional Unix behavior:
+/// terminate quietly when the reader goes away.
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {}
+
 fn main() {
+    reset_sigpipe();
     let cli = Cli::parse();
 
     let env_filter = || {

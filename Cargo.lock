@@ -594,6 +594,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",
+ "libc",
  "orangebox-application",
  "orangebox-domain",
  "orangebox-infrastructure",
