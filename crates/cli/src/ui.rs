@@ -14,7 +14,10 @@ use blackbox_infrastructure::watcher::FsWatcher;
 use serde::Serialize;
 use tiny_http::{Header, Response, Server};
 
-const PAGE: &str = include_str!("ui.html");
+// The React app (ui/ at the repo root), built by `npm run build` into a
+// single self-contained file and embedded at compile time. The built file
+// is committed so `cargo install` works without a JS toolchain.
+const PAGE: &str = include_str!("../../../ui/dist/index.html");
 
 #[derive(Serialize)]
 struct SessionDto {

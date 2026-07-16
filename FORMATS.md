@@ -34,7 +34,41 @@ truncated JSON). Parsers must skip unparseable lines, never fail the file.
 
 ## Antigravity (observed: May 2026 build, macOS)
 
-**Location:** `~/Library/Application Support/Antigravity IDE/`
+**Locations:** `~/Library/Application Support/Antigravity IDE/` (VS Code
+lineage state) and `~/.gemini/antigravity-ide/` (agent data: conversations,
+brain, knowledge — ~148 MB observed).
+
+### Full conversations — `~/.gemini/antigravity-ide/conversations/`
+
+One file per trajectory, named `<trajectory-uuid>.db` (SQLite; trajectories
+from ~May 23 2026 and earlier use a `.pb` protobuf format we don't parse
+yet). Tables: `steps`, `trajectory_meta`, `trajectory_metadata_blob`,
+`executor_metadata`, `gen_metadata`, `battle_mode_infos`,
+`parent_references`.
+
+`steps` schema: `idx` (PK), `step_type`, `status`, `metadata` blob,
+`step_payload` blob (protobuf), … The payload's field 1 repeats the step
+type; field 5 wraps a `{1: {1: secs, 2: nanos}}` timestamp. Text lives at
+varying depths — the adapter harvests prose-looking strings recursively.
+
+Observed `step_type` → meaning (mapped 2026-07-16):
+
+| Type | Meaning | Role |
+| --- | --- | --- |
+| 14 | User message (incl. attached context) | user |
+| 15 | Model planning/prose | assistant |
+| 5 | Model proposals (markdown docs, edit instructions) | assistant |
+| 23 | Task description docs | assistant |
+| 85 | Trajectory self-summary | assistant |
+| 21 | Terminal command | tool |
+| 7 | Command/tool output | tool |
+| 8 | File contents viewed/written | tool |
+| 9 | Tool action JSON (`toolAction`, `toolSummary`) | tool |
+| 132 / 101 | Brain task events / inter-task messages | tool |
+| 90 | Ephemeral system reminder | skipped |
+| 98 / 99 | Injected conversation history / empty | skipped |
+
+### Summaries — Application Support
 
 - VS Code-lineage layout: `User/globalStorage/state.vscdb` (SQLite),
   per-workspace `User/workspaceStorage/<hash>/state.vscdb`.

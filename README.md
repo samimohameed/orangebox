@@ -33,9 +33,10 @@ so recovery works forward, not backward:
   exported Markdown.
 - **Antigravity / others** — open the session in `blackbox ui`, press
   **Copy recovery prompt**, paste it into a fresh session, and ask the
-  agent to continue from it. The export carries everything Blackbox
-  recorded (for Antigravity: titles, progress, terminal snippets —
-  full trajectories never touch local disk).
+  agent to continue from it. Antigravity exports carry the full recorded
+  trajectory: your prompts, the model's reasoning, tool activity, file
+  contents, and terminal output (recovered from
+  `~/.gemini/antigravity-ide/conversations/`).
 
 The archive lives in your platform data directory
 (macOS: `~/Library/Application Support/blackbox/archive.db`);
@@ -67,4 +68,16 @@ Ground rules:
 ```sh
 cargo test         # unit tests incl. golden-fixture parser tests
 cargo run -p blackbox-cli -- scan
+```
+
+The GUI is a React + TypeScript + Vite app in `ui/`, built into a single
+self-contained `ui/dist/index.html` that the Rust binary embeds at compile
+time (so `cargo install` needs no JS toolchain — the built file is
+committed). Working on the GUI:
+
+```sh
+blackbox ui                         # backend on :7171
+cd ui && npm install && npm run dev # hot-reload dev server, /api proxied
+npm run build                       # rebuild the embedded bundle,
+                                    # then cargo build
 ```
