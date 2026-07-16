@@ -128,11 +128,11 @@ Ground rules:
 
 ```sh
 cargo test         # unit tests incl. golden-fixture parser tests
-cargo run -p orangebox-cli -- scan
+cargo run -p orangebox -- scan
 ```
 
 The GUI is a React + TypeScript + Vite app in `ui/`, built into a single
-self-contained `ui/dist/index.html` that the Rust binary embeds at compile
+self-contained `crates/cli/assets/index.html` that the Rust binary embeds at compile
 time (so `cargo install` needs no JS toolchain — the built file is
 committed). Working on the GUI:
 

@@ -10,16 +10,16 @@ that help most.
 git clone https://github.com/samimohameed/orangebox
 cd orangebox
 cargo test                          # everything should be green
-cargo run -p orangebox-cli -- scan  # ingest your own machine's sessions
+cargo run -p orangebox -- scan  # ingest your own machine's sessions
 ```
 
 Rust stable is the only requirement. The web UI (`ui/`) is React +
 TypeScript + Vite; you only need Node if you're changing the UI:
 
 ```sh
-cargo run -p orangebox-cli -- ui    # backend on :7171
+cargo run -p orangebox -- ui    # backend on :7171
 cd ui && npm install && npm run dev # hot reload, /api proxied
-npm run build                       # regenerate ui/dist/index.html
+npm run build                       # regenerate crates/cli/assets/index.html
                                     # (committed — the binary embeds it)
 ```
 
@@ -64,9 +64,9 @@ self-contained module. The recipe:
 ## Pull requests
 
 - `cargo test` and `cargo clippy --workspace -- -D warnings` must pass
-  (CI runs both on macOS and Ubuntu).
+  (CI runs both on macOS, Ubuntu, and Windows).
 - Keep PRs focused; adapter PRs should touch one adapter.
-- If you changed the UI, commit the rebuilt `ui/dist/index.html`.
+- If you changed the UI, commit the rebuilt `crates/cli/assets/index.html`.
 - Update FORMATS.md when you learn anything new about a tool's storage —
   that file is the project's collective memory.
 
