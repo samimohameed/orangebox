@@ -16,9 +16,10 @@ use tiny_http::{Header, Response, Server};
 use crate::dto::{HitDto, StatusDto, SummaryDto, TranscriptDto};
 
 // The React app (ui/ at the repo root), built by `npm run build` into a
-// single self-contained file and embedded at compile time. The built file
-// is committed so `cargo install` works without a JS toolchain.
-const PAGE: &str = include_str!("../../../ui/dist/index.html");
+// single self-contained file inside this crate (so `cargo publish` can
+// package it) and embedded at compile time. The built file is committed
+// so `cargo install` works without a JS toolchain.
+const PAGE: &str = include_str!("../assets/index.html");
 
 fn percent_decode(input: &str) -> String {
     let bytes = input.as_bytes();

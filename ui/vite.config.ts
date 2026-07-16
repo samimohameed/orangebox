@@ -7,6 +7,12 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 // ships the whole GUI. In dev, /api proxies to a running `orangebox ui`.
 export default defineConfig({
   plugins: [react(), viteSingleFile()],
+  build: {
+    // Emit into the cli crate: cargo publish only packages files inside
+    // the crate directory, so the embedded UI must live there.
+    outDir: '../crates/cli/assets',
+    emptyOutDir: true,
+  },
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:7171',

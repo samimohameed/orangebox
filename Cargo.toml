@@ -11,11 +11,15 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+repository = "https://github.com/samimohameed/orangebox"
+homepage = "https://github.com/samimohameed/orangebox"
+keywords = ["ai", "claude", "recovery", "flight-recorder", "cli"]
+categories = ["command-line-utilities", "development-tools"]
 
 [workspace.dependencies]
-orangebox-domain = { path = "crates/domain" }
-orangebox-application = { path = "crates/application" }
-orangebox-infrastructure = { path = "crates/infrastructure" }
+orangebox-domain = { path = "crates/domain", version = "0.1.0" }
+orangebox-application = { path = "crates/application", version = "0.1.0" }
+orangebox-infrastructure = { path = "crates/infrastructure", version = "0.1.0" }
 
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

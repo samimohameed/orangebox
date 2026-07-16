@@ -3,6 +3,11 @@ name = "orangebox-infrastructure"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "SQLite archive, tool adapters, and platform services for Orangebox"
 
 # Infrastructure layer: implements the application's ports with real
 # technology (SQLite, filesystem, file watching, tool-specific parsers).

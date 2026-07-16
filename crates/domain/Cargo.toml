@@ -3,6 +3,11 @@ name = "orangebox-domain"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Domain entities for Orangebox, the flight recorder for AI coding sessions"
 
 # The domain layer has zero dependencies by design (Clean Architecture
 # dependency rule): entities must not know about storage, parsing, or I/O.

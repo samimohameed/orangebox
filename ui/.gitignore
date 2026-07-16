@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-# dist is committed: the Rust binary embeds dist/index.html at compile time
+dist
 dist-ssr
 *.local
 

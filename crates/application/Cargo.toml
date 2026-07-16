@@ -3,6 +3,11 @@ name = "orangebox-application"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Application services and ports for Orangebox, the flight recorder for AI coding sessions"
 
 # Application layer: use cases and ports. Depends on the domain only —
 # never on infrastructure. `thiserror` is the one permitted utility crate.

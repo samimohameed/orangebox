@@ -581,15 +581,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
-name = "orangebox-application"
-version = "0.1.0"
-dependencies = [
- "orangebox-domain",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "orangebox-cli"
+name = "orangebox"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -603,6 +595,14 @@ dependencies = [
  "tiny_http",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "orangebox-application"
+version = "0.1.0"
+dependencies = [
+ "orangebox-domain",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
