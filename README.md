@@ -1,6 +1,7 @@
 # Orangebox 📼
 
 ![CI](https://github.com/samimohameed/orangebox/actions/workflows/ci.yml/badge.svg)
+[![crates.io](https://img.shields.io/crates/v/orangebox.svg)](https://crates.io/crates/orangebox)
 
 **A flight recorder for AI coding sessions.** Orangebox watches the local
 storage of AI coding tools (Claude Code and Antigravity today; Cursor and
@@ -35,10 +36,11 @@ Requires the [Rust toolchain](https://rustup.rs) (1.80+). No Node or other
 runtime needed — the web UI ships prebuilt inside the binary.
 
 ```sh
-git clone https://github.com/samimohameed/orangebox
-cd orangebox
-cargo install --path crates/cli
+cargo install orangebox
 ```
+
+(Or from source: `git clone https://github.com/samimohameed/orangebox &&
+cd orangebox && cargo install --path crates/cli`.)
 
 Then:
 
