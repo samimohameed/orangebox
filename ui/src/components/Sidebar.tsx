@@ -10,7 +10,7 @@ export function fmtDate(ms: number): string {
 
 export function projectName(project: string | null): string {
   if (!project) return 'unknown project'
-  return project.split('/').filter(Boolean).pop() ?? project
+  return project.split(/[/\\]/).filter(Boolean).pop() ?? project
 }
 
 /** Render a search snippet, turning the FTS `>>match<<` markers into <mark>. */

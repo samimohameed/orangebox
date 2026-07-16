@@ -1,8 +1,8 @@
 //! Infrastructure layer: SQLite archive, tool adapters, and file watching.
 
 pub mod adapters;
-pub mod launchd;
 pub mod proto;
+pub mod service;
 pub mod sqlite;
 pub mod watcher;
 

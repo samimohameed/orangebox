@@ -63,7 +63,7 @@ enum Command {
         #[arg(short, long, default_value_t = 7171)]
         port: u16,
     },
-    /// Install the always-on recorder (launchd agent, starts at login).
+    /// Install the always-on recorder (starts at login, auto-restarts).
     Install,
     /// Stop and remove the always-on recorder.
     Uninstall,
@@ -77,9 +77,14 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Run the recorder loop (what the launchd agent executes).
+    /// Run the recorder loop (what the platform service executes).
     #[command(hide = true)]
-    Daemon,
+    Daemon {
+        /// Append logs to this file instead of stderr (used on platforms
+        /// where the service manager doesn't capture output).
+        #[arg(long)]
+        log_file: Option<PathBuf>,
+    },
 }
 
 /// Every tool adapter available on this machine, ready for injection.
@@ -114,18 +119,38 @@ fn truncate(s: &str, max: usize) -> String {
 }
 
 fn short_project(path: &str) -> String {
-    path.rsplit('/').next().unwrap_or(path).to_string()
+    path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "orangebox=info,warn".into()),
-        )
-        .init();
-
     let cli = Cli::parse();
+
+    let env_filter = || {
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| "orangebox=info,warn".into())
+    };
+    // The daemon may need to write its own log file (Windows Task
+    // Scheduler captures nothing); everything else logs to stderr.
+    match &cli.command {
+        Command::Daemon { log_file: Some(path) } => {
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .unwrap_or_else(|e| {
+                    eprintln!("error: cannot open log file {}: {e}", path.display());
+                    std::process::exit(1);
+                });
+            tracing_subscriber::fmt()
+                .with_env_filter(env_filter())
+                .with_writer(std::sync::Mutex::new(file))
+                .with_ansi(false)
+                .init();
+        }
+        _ => {
+            tracing_subscriber::fmt().with_env_filter(env_filter()).init();
+        }
+    }
     let db_path = cli.db.unwrap_or_else(orangebox_infrastructure::default_db_path);
 
     let repo = match SqliteArchive::open(&db_path) {
@@ -158,7 +183,7 @@ fn main() {
         Command::Prune { keep_days, dry_run } => {
             cmd_prune(ArchiveService::new(repo), keep_days, dry_run)
         }
-        Command::Daemon => cmd_daemon(RecorderService::new(repo, adapters())),
+        Command::Daemon { .. } => cmd_daemon(RecorderService::new(repo, adapters())),
     };
 
     if let Err(e) = result {
@@ -351,16 +376,16 @@ fn cmd_daemon(mut recorder: RecorderService<SqliteArchive>) -> orangebox_applica
 fn cmd_install() -> orangebox_application::Result<()> {
     let binary = std::env::current_exe()
         .map_err(|e| orangebox_application::ArchiveError::Storage(format!("current_exe: {e}")))?;
-    let plist = orangebox_infrastructure::launchd::install(&binary.display().to_string())?;
-    println!("installed launchd agent: {}", plist.display());
-    println!("logs: {}", orangebox_infrastructure::launchd::log_path().display());
+    let installed = orangebox_infrastructure::service::install(&binary.display().to_string())?;
+    println!("installed {installed}");
+    println!("logs: {}", orangebox_infrastructure::service::log_hint());
     println!("The recorder now starts at login and restarts if it dies.");
     println!("Check it any time with `orangebox doctor`.");
     Ok(())
 }
 
 fn cmd_uninstall() -> orangebox_application::Result<()> {
-    orangebox_infrastructure::launchd::uninstall()?;
+    orangebox_infrastructure::service::uninstall()?;
     println!("always-on recorder stopped and removed");
     Ok(())
 }
@@ -371,8 +396,8 @@ fn cmd_doctor(
 ) -> orangebox_application::Result<()> {
     let ok = |b: bool| if b { "ok  " } else { "WARN" };
 
-    let installed = orangebox_infrastructure::launchd::is_installed();
-    let running = orangebox_infrastructure::launchd::is_running();
+    let installed = orangebox_infrastructure::service::is_installed();
+    let running = orangebox_infrastructure::service::is_running();
     println!("[{}] daemon installed: {installed}", ok(installed));
     println!("[{}] daemon running:   {running}", ok(running || !installed));
     if !installed {

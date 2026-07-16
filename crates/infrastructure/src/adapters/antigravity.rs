@@ -72,11 +72,20 @@ impl Drop for DbSnapshot {
 }
 
 impl AntigravityAdapter {
+    /// Platform-neutral defaults. `dirs::config_dir()` maps to the VS Code-
+    /// lineage config root on every OS: `~/Library/Application Support`
+    /// (macOS), `%APPDATA%` (Windows), `~/.config` (Linux). The `.gemini`
+    /// agent directory lives under the home directory on all platforms.
+    /// Windows/Linux paths are best-effort until validated on real
+    /// installs — tracked in issue #4.
     pub fn new_default() -> Option<Self> {
         let home = dirs::home_dir()?;
         Some(Self {
-            user_dir: home.join("Library/Application Support/Antigravity IDE/User"),
-            conversations_dir: home.join(".gemini/antigravity-ide/conversations"),
+            user_dir: dirs::config_dir()?.join("Antigravity IDE").join("User"),
+            conversations_dir: home
+                .join(".gemini")
+                .join("antigravity-ide")
+                .join("conversations"),
         })
     }
 
