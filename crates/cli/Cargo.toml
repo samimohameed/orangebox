@@ -1,19 +1,19 @@
 [package]
-name = "blackbox-cli"
+name = "orangebox-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "blackbox"
+name = "orangebox"
 path = "src/main.rs"
 
 # Composition root: the only crate allowed to know every layer, because its
 # job is to wire infrastructure implementations into application use cases.
 [dependencies]
-blackbox-domain = { workspace = true }
-blackbox-application = { workspace = true }
-blackbox-infrastructure = { workspace = true }
+orangebox-domain = { workspace = true }
+orangebox-application = { workspace = true }
+orangebox-infrastructure = { workspace = true }
 clap = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }

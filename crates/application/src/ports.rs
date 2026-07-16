@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use blackbox_domain::{Message, Session, ToolKind};
+use orangebox_domain::{Message, Session, ToolKind};
 
 use crate::Result;
 
@@ -58,7 +58,7 @@ pub struct SessionSummary {
     pub first_user_message: Option<String>,
 }
 
-/// Counts for `blackbox status`.
+/// Counts for `orangebox status`.
 #[derive(Debug, Clone, Default)]
 pub struct ArchiveStats {
     pub sessions: i64,
@@ -66,7 +66,7 @@ pub struct ArchiveStats {
     pub tools: Vec<(String, i64)>,
 }
 
-/// The archive Blackbox owns: session/message storage plus search.
+/// The archive Orangebox owns: session/message storage plus search.
 pub trait ArchiveRepository: Send {
     /// Insert or update sessions and messages. Duplicate message ids are
     /// ignored (idempotent ingestion). Returns the number of messages that
@@ -82,4 +82,8 @@ pub trait ArchiveRepository: Send {
     /// One session with all of its messages in order, or `None` when the
     /// id is unknown. Ids may be given as an unambiguous prefix.
     fn session_with_messages(&self, session_id: &str) -> Result<Option<(Session, Vec<Message>)>>;
+
+    /// Delete sessions whose last activity is older than the cutoff,
+    /// along with their messages. Returns (sessions, messages) removed.
+    fn prune(&mut self, older_than_ms: i64) -> Result<(usize, usize)>;
 }

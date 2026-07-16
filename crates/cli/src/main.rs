@@ -1,4 +1,4 @@
-//! Blackbox CLI — composition root.
+//! Orangebox CLI — composition root.
 //!
 //! This binary is the only place where concrete infrastructure (SQLite,
 //! adapters, watcher) is constructed and injected into the application
@@ -10,17 +10,17 @@ mod ui;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use blackbox_application::ports::ToolAdapter;
-use blackbox_application::services::{ArchiveService, RecorderService};
-use blackbox_infrastructure::adapters::antigravity::AntigravityAdapter;
-use blackbox_infrastructure::adapters::claude_code::ClaudeCodeAdapter;
-use blackbox_infrastructure::sqlite::SqliteArchive;
-use blackbox_infrastructure::watcher::FsWatcher;
+use orangebox_application::ports::ToolAdapter;
+use orangebox_application::services::{ArchiveService, RecorderService};
+use orangebox_infrastructure::adapters::antigravity::AntigravityAdapter;
+use orangebox_infrastructure::adapters::claude_code::ClaudeCodeAdapter;
+use orangebox_infrastructure::sqlite::SqliteArchive;
+use orangebox_infrastructure::watcher::FsWatcher;
 use chrono::{Local, TimeZone};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "blackbox", version, about = "Flight recorder for AI coding sessions")]
+#[command(name = "orangebox", version, about = "Flight recorder for AI coding sessions")]
 struct Cli {
     /// Path to the archive database (default: platform data dir).
     #[arg(long, global = true)]
@@ -63,6 +63,23 @@ enum Command {
         #[arg(short, long, default_value_t = 7171)]
         port: u16,
     },
+    /// Install the always-on recorder (launchd agent, starts at login).
+    Install,
+    /// Stop and remove the always-on recorder.
+    Uninstall,
+    /// Health check: daemon state, archive, watch paths.
+    Doctor,
+    /// Delete sessions idle for more than N days (explicit, never automatic).
+    Prune {
+        #[arg(long)]
+        keep_days: u32,
+        /// Show what would be deleted without deleting it.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Run the recorder loop (what the launchd agent executes).
+    #[command(hide = true)]
+    Daemon,
 }
 
 /// Every tool adapter available on this machine, ready for injection.
@@ -104,12 +121,12 @@ fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "blackbox=info,warn".into()),
+                .unwrap_or_else(|_| "orangebox=info,warn".into()),
         )
         .init();
 
     let cli = Cli::parse();
-    let db_path = cli.db.unwrap_or_else(blackbox_infrastructure::default_db_path);
+    let db_path = cli.db.unwrap_or_else(orangebox_infrastructure::default_db_path);
 
     let repo = match SqliteArchive::open(&db_path) {
         Ok(a) => a,
@@ -135,6 +152,13 @@ fn main() {
             drop(repo); // the UI opens its own connections
             ui::serve(db_path, port)
         }
+        Command::Install => cmd_install(),
+        Command::Uninstall => cmd_uninstall(),
+        Command::Doctor => cmd_doctor(&ArchiveService::new(repo), &db_path),
+        Command::Prune { keep_days, dry_run } => {
+            cmd_prune(ArchiveService::new(repo), keep_days, dry_run)
+        }
+        Command::Daemon => cmd_daemon(RecorderService::new(repo, adapters())),
     };
 
     if let Err(e) = result {
@@ -143,7 +167,7 @@ fn main() {
     }
 }
 
-fn cmd_scan(mut recorder: RecorderService<SqliteArchive>) -> blackbox_application::Result<()> {
+fn cmd_scan(mut recorder: RecorderService<SqliteArchive>) -> orangebox_application::Result<()> {
     let reports = recorder.scan_all()?;
     let mut total_new = 0usize;
     for r in &reports {
@@ -160,7 +184,7 @@ fn cmd_scan(mut recorder: RecorderService<SqliteArchive>) -> blackbox_applicatio
     Ok(())
 }
 
-fn cmd_watch(mut recorder: RecorderService<SqliteArchive>) -> blackbox_application::Result<()> {
+fn cmd_watch(mut recorder: RecorderService<SqliteArchive>) -> orangebox_application::Result<()> {
     // Catch up on anything written while we weren't running, then tail.
     let reports = recorder.scan_all()?;
     let backfilled: usize = reports.iter().map(|r| r.new_messages).sum();
@@ -191,7 +215,7 @@ fn cmd_search(
     archive: &ArchiveService<SqliteArchive>,
     query: &str,
     limit: usize,
-) -> blackbox_application::Result<()> {
+) -> orangebox_application::Result<()> {
     let hits = archive.search(query, limit)?;
     if hits.is_empty() {
         println!("no matches for \"{query}\"");
@@ -220,10 +244,10 @@ fn cmd_search(
 fn cmd_timeline(
     archive: &ArchiveService<SqliteArchive>,
     limit: usize,
-) -> blackbox_application::Result<()> {
+) -> orangebox_application::Result<()> {
     let sessions = archive.timeline(limit)?;
     if sessions.is_empty() {
-        println!("archive is empty — run `blackbox scan` first");
+        println!("archive is empty — run `orangebox scan` first");
         return Ok(());
     }
     for s in &sessions {
@@ -253,7 +277,7 @@ fn cmd_timeline(
 fn cmd_status(
     archive: &ArchiveService<SqliteArchive>,
     db_path: &std::path::Path,
-) -> blackbox_application::Result<()> {
+) -> orangebox_application::Result<()> {
     let stats = archive.stats()?;
     println!("archive: {}", db_path.display());
     println!("sessions: {}", stats.sessions);
@@ -267,7 +291,7 @@ fn cmd_status(
 fn cmd_show(
     archive: &ArchiveService<SqliteArchive>,
     session_id: &str,
-) -> blackbox_application::Result<()> {
+) -> orangebox_application::Result<()> {
     let (session, messages) = archive.transcript(session_id)?;
     println!(
         "{} · {} · {} message(s)\n",
@@ -286,12 +310,12 @@ fn cmd_export(
     archive: &ArchiveService<SqliteArchive>,
     session_id: &str,
     out: Option<PathBuf>,
-) -> blackbox_application::Result<()> {
+) -> orangebox_application::Result<()> {
     let md = archive.export_markdown(session_id)?;
     match out {
         Some(path) => {
             std::fs::write(&path, &md).map_err(|e| {
-                blackbox_application::ArchiveError::Storage(format!(
+                orangebox_application::ArchiveError::Storage(format!(
                     "write {}: {e}",
                     path.display()
                 ))
@@ -300,5 +324,123 @@ fn cmd_export(
         }
         None => print!("{md}"),
     }
+    Ok(())
+}
+
+fn cmd_daemon(mut recorder: RecorderService<SqliteArchive>) -> orangebox_application::Result<()> {
+    tracing::info!("orangebox daemon starting");
+    let reports = recorder.scan_all()?;
+    let backfilled: usize = reports.iter().map(|r| r.new_messages).sum();
+    tracing::info!(backfilled, "backfill complete; watching");
+
+    let watcher = FsWatcher::watch(&recorder.watch_roots(), Duration::from_secs(2))?;
+    while let Some(paths) = watcher.next_changed_paths() {
+        for path in paths {
+            match recorder.ingest_changed_path(&path) {
+                Ok(Some(report)) if report.new_messages > 0 => {
+                    tracing::info!(tool = report.tool, new = report.new_messages, "recorded");
+                }
+                Ok(_) => {}
+                Err(e) => tracing::warn!(path = %path.display(), "ingest failed: {e}"),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn cmd_install() -> orangebox_application::Result<()> {
+    let binary = std::env::current_exe()
+        .map_err(|e| orangebox_application::ArchiveError::Storage(format!("current_exe: {e}")))?;
+    let plist = orangebox_infrastructure::launchd::install(&binary.display().to_string())?;
+    println!("installed launchd agent: {}", plist.display());
+    println!("logs: {}", orangebox_infrastructure::launchd::log_path().display());
+    println!("The recorder now starts at login and restarts if it dies.");
+    println!("Check it any time with `orangebox doctor`.");
+    Ok(())
+}
+
+fn cmd_uninstall() -> orangebox_application::Result<()> {
+    orangebox_infrastructure::launchd::uninstall()?;
+    println!("always-on recorder stopped and removed");
+    Ok(())
+}
+
+fn cmd_doctor(
+    archive: &ArchiveService<SqliteArchive>,
+    db_path: &std::path::Path,
+) -> orangebox_application::Result<()> {
+    let ok = |b: bool| if b { "ok  " } else { "WARN" };
+
+    let installed = orangebox_infrastructure::launchd::is_installed();
+    let running = orangebox_infrastructure::launchd::is_running();
+    println!("[{}] daemon installed: {installed}", ok(installed));
+    println!("[{}] daemon running:   {running}", ok(running || !installed));
+    if !installed {
+        println!("       hint: `orangebox install` enables always-on recording");
+    }
+
+    let db_size = std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0);
+    println!(
+        "[{}] archive: {} ({:.1} MB)",
+        ok(db_size > 0),
+        db_path.display(),
+        db_size as f64 / 1e6
+    );
+
+    let stats = archive.stats()?;
+    println!("[ok  ] {} sessions, {} messages", stats.sessions, stats.messages);
+
+    let last = archive.timeline(1)?;
+    match last.first() {
+        Some(s) => {
+            let age_h = (Local::now().timestamp_millis() - s.session.last_activity_ms) as f64
+                / 3_600_000.0;
+            println!(
+                "[ok  ] last recorded activity: {} ({:.1}h ago)",
+                fmt_ts(s.session.last_activity_ms),
+                age_h
+            );
+        }
+        None => println!("[WARN] archive is empty — run `orangebox scan`"),
+    }
+
+    for adapter in adapters() {
+        for root in adapter.watch_roots() {
+            let exists = root.exists();
+            println!(
+                "[{}] {} watch root: {}",
+                ok(exists),
+                adapter.tool().slug(),
+                root.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn cmd_prune(
+    mut archive: ArchiveService<SqliteArchive>,
+    keep_days: u32,
+    dry_run: bool,
+) -> orangebox_application::Result<()> {
+    let now_ms = Local::now().timestamp_millis();
+    if dry_run {
+        let cutoff = now_ms - i64::from(keep_days) * 24 * 60 * 60 * 1000;
+        let old: Vec<_> = archive
+            .timeline(usize::MAX)?
+            .into_iter()
+            .filter(|s| s.session.last_activity_ms < cutoff)
+            .collect();
+        let messages: i64 = old.iter().map(|s| s.message_count).sum();
+        println!(
+            "dry run: would delete {} session(s) with {} message(s) older than {} day(s)",
+            old.len(),
+            messages,
+            keep_days
+        );
+        return Ok(());
+    }
+    let (sessions, messages) = archive.prune(keep_days, now_ms)?;
+    println!("pruned {sessions} session(s), {messages} message(s) idle for more than {keep_days} day(s)");
     Ok(())
 }

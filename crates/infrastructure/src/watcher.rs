@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
 
-use blackbox_application::{ArchiveError, Result};
+use orangebox_application::{ArchiveError, Result};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 pub struct FsWatcher {

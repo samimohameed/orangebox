@@ -1,5 +1,5 @@
 //! Application layer: ports (traits the outside world implements) and
-//! use cases (the operations Blackbox performs).
+//! use cases (the operations Orangebox performs).
 //!
 //! Nothing in this crate knows about SQLite, the filesystem layout of any
 //! AI tool, or the CLI. Infrastructure implements the ports; the CLI wires

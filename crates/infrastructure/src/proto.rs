@@ -1,6 +1,6 @@
 //! Minimal protobuf wire-format walker.
 //!
-//! Blackbox does not ship any vendor's `.proto` schemas. Instead this module
+//! Orangebox does not ship any vendor's `.proto` schemas. Instead this module
 //! decodes the wire format generically (field number + wire type + payload)
 //! and adapters pick out the fields they have mapped by observation
 //! (documented in FORMATS.md). Unknown fields are preserved in the walk

@@ -50,7 +50,7 @@ export default function Sidebar(props: SidebarProps) {
     <aside className="sidebar">
       <div className="brand">
         <span className="dot" />
-        <h1>Blackbox</h1>
+        <h1>Orangebox</h1>
         <small>flight recorder</small>
       </div>
 
@@ -78,7 +78,7 @@ export default function Sidebar(props: SidebarProps) {
       <div className="list">
         {items.length === 0 && (
           <div className="item" style={{ color: 'var(--muted)', cursor: 'default' }}>
-            {searching ? 'No matches.' : 'Archive is empty — run blackbox scan.'}
+            {searching ? 'No matches.' : 'Archive is empty — run orangebox scan.'}
           </div>
         )}
         {searching

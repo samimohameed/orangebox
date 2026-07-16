@@ -4,7 +4,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
 
 // The production build is a single self-contained index.html that the Rust
 // binary embeds at compile time (crates/cli/src/ui.rs), so `cargo install`
-// ships the whole GUI. In dev, /api proxies to a running `blackbox ui`.
+// ships the whole GUI. In dev, /api proxies to a running `orangebox ui`.
 export default defineConfig({
   plugins: [react(), viteSingleFile()],
   server: {

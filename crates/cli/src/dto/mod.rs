@@ -4,8 +4,8 @@
 //! what the React app consumes (mirrored in `ui/src/types.ts`). Domain
 //! entities convert in via `From`, so handlers never build DTOs by hand.
 
-use blackbox_application::ports::{ArchiveStats, SearchHit, SessionSummary};
-use blackbox_domain::{Message, Session};
+use orangebox_application::ports::{ArchiveStats, SearchHit, SessionSummary};
+use orangebox_domain::{Message, Session};
 use serde::Serialize;
 
 #[derive(Serialize)]

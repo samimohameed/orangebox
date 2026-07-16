@@ -13,9 +13,9 @@ edition = "2021"
 license = "MIT"
 
 [workspace.dependencies]
-blackbox-domain = { path = "crates/domain" }
-blackbox-application = { path = "crates/application" }
-blackbox-infrastructure = { path = "crates/infrastructure" }
+orangebox-domain = { path = "crates/domain" }
+orangebox-application = { path = "crates/application" }
+orangebox-infrastructure = { path = "crates/infrastructure" }
 
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }

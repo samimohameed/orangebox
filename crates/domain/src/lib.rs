@@ -1,4 +1,4 @@
-//! Domain layer: the entities of the Blackbox archive.
+//! Domain layer: the entities of the Orangebox archive.
 //!
 //! This crate is dependency-free. Timestamps are unix epoch milliseconds
 //! (`i64`) so the domain does not need a datetime library; formatting and

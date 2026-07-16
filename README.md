@@ -1,17 +1,17 @@
-# Blackbox 📼
+# Orangebox 📼
 
-![CI](https://github.com/samimohameed/blackbox/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/samimohameed/orangebox/actions/workflows/ci.yml/badge.svg)
 
-**A flight recorder for AI coding sessions.** Blackbox watches the local
+**A flight recorder for AI coding sessions.** Orangebox watches the local
 storage of AI coding tools (Claude Code today; Antigravity, Cursor and
 Copilot next) and journals every conversation into a crash-safe, searchable
 archive — so a power cut, a force-quit, or a tool losing its own history
 never costs you a conversation or an implementation plan again.
 
-**Local-only, forever.** Blackbox makes no network calls, sends no
+**Local-only, forever.** Orangebox makes no network calls, sends no
 telemetry, and never writes to any tool's storage — it only reads.
 
-![Blackbox demo: search every conversation, open a recovered Antigravity trajectory, copy the recovery prompt](docs/demo.gif)
+![Orangebox demo: search every conversation, open a recovered Antigravity trajectory, copy the recovery prompt](docs/demo.gif)
 
 ## Supported tools
 
@@ -31,21 +31,23 @@ Requires the [Rust toolchain](https://rustup.rs) (1.80+). No Node or other
 runtime needed — the web UI ships prebuilt inside the binary.
 
 ```sh
-git clone https://github.com/samimohameed/blackbox
-cd blackbox
+git clone https://github.com/samimohameed/orangebox
+cd orangebox
 cargo install --path crates/cli
 ```
 
 Then:
 
 ```sh
-blackbox scan   # backfill everything your tools already have on disk
-blackbox ui     # open http://127.0.0.1:7171 — browse, search, recover
+orangebox scan      # backfill everything your tools already have on disk
+orangebox install   # always-on: record at login, auto-restart, forever
+orangebox ui        # open http://127.0.0.1:7171 — browse, search, recover
 ```
 
-`scan` is idempotent — run it as often as you like. `ui` keeps recording
-in the background while it's open; for terminal-only recording use
-`blackbox watch`.
+`scan` is idempotent — run it as often as you like. `install` registers a
+launchd agent so recording survives reboots and crashes without a terminal
+window; check on it with `orangebox doctor`, remove it with
+`orangebox uninstall`.
 
 ### Crash-safety, verified
 
@@ -58,15 +60,19 @@ own storage); secret redaction is on the roadmap.
 ## Usage
 
 ```sh
-blackbox scan            # backfill: archive every existing session
-blackbox watch           # record continuously (foreground for now)
-blackbox ui              # local web UI — browse, search, recover
-                         # (keeps recording while open)
-blackbox search "plan"   # full-text search across all tools
-blackbox timeline        # recent sessions, newest first
-blackbox show <id>       # print one session's transcript
-blackbox export <id>     # Markdown recovery document (-o file.md)
-blackbox status          # archive stats
+orangebox scan            # backfill: archive every existing session
+orangebox install         # always-on recorder (launchd, starts at login)
+orangebox uninstall       # stop and remove the always-on recorder
+orangebox doctor          # health check: daemon, archive, watch paths
+orangebox watch           # record in the foreground instead
+orangebox ui              # local web UI — browse, search, recover
+                          # (keeps recording while open)
+orangebox search "plan"   # full-text search across all tools
+orangebox timeline        # recent sessions, newest first
+orangebox show <id>       # print one session's transcript
+orangebox export <id>     # Markdown recovery document (-o file.md)
+orangebox status          # archive stats
+orangebox prune --keep-days 90   # optional retention (never automatic)
 ```
 
 ## Recovering a lost session
@@ -77,7 +83,7 @@ so recovery works forward, not backward:
 - **Claude Code** — sessions usually survive locally; run
   `claude --resume <session-uuid>` in the project directory, or use the
   exported Markdown.
-- **Antigravity / others** — open the session in `blackbox ui`, press
+- **Antigravity / others** — open the session in `orangebox ui`, press
   **Copy recovery prompt**, paste it into a fresh session, and ask the
   agent to continue from it. Antigravity exports carry the full recorded
   trajectory: your prompts, the model's reasoning, tool activity, file
@@ -85,7 +91,7 @@ so recovery works forward, not backward:
   `~/.gemini/antigravity-ide/conversations/`).
 
 The archive lives in your platform data directory
-(macOS: `~/Library/Application Support/blackbox/archive.db`);
+(macOS: `~/Library/Application Support/orangebox/archive.db`);
 override with `--db <path>`.
 
 ## Architecture
@@ -118,7 +124,7 @@ Ground rules:
 
 ```sh
 cargo test         # unit tests incl. golden-fixture parser tests
-cargo run -p blackbox-cli -- scan
+cargo run -p orangebox-cli -- scan
 ```
 
 The GUI is a React + TypeScript + Vite app in `ui/`, built into a single
@@ -127,7 +133,7 @@ time (so `cargo install` needs no JS toolchain — the built file is
 committed). Working on the GUI:
 
 ```sh
-blackbox ui                         # backend on :7171
+orangebox ui                         # backend on :7171
 cd ui && npm install && npm run dev # hot-reload dev server, /api proxied
 npm run build                       # rebuild the embedded bundle,
                                     # then cargo build

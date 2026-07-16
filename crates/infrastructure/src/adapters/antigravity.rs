@@ -19,9 +19,9 @@
 
 use std::path::{Path, PathBuf};
 
-use blackbox_application::ports::{IngestBatch, ToolAdapter};
-use blackbox_application::{ArchiveError, Result};
-use blackbox_domain::{Message, Role, Session, ToolKind};
+use orangebox_application::ports::{IngestBatch, ToolAdapter};
+use orangebox_application::{ArchiveError, Result};
+use orangebox_domain::{Message, Role, Session, ToolKind};
 use rusqlite::Connection;
 
 use crate::proto::{self, Value};
@@ -51,7 +51,7 @@ impl DbSnapshot {
         // databases) must never share a scratch directory.
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("blackbox-agy-{}-{n}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("orangebox-agy-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).map_err(io_err)?;
         let copy = dir.join("snapshot.db");
         std::fs::copy(db, &copy).map_err(io_err)?;

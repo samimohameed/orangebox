@@ -1,6 +1,6 @@
 # Tool storage formats
 
-Everything Blackbox knows about each tool's on-disk format, with the tool
+Everything Orangebox knows about each tool's on-disk format, with the tool
 version it was observed on. Update this file whenever an adapter learns
 something new — this knowledge is the project's core asset and its biggest
 maintenance burden.

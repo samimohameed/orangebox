@@ -1,4 +1,4 @@
-//! Local web UI: `blackbox ui`.
+//! Local web UI: `orangebox ui`.
 //!
 //! Serves the embedded React app on 127.0.0.1 and answers JSON API
 //! requests through the same application services as the CLI commands.
@@ -8,9 +8,9 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use blackbox_application::services::{ArchiveService, RecorderService};
-use blackbox_infrastructure::sqlite::SqliteArchive;
-use blackbox_infrastructure::watcher::FsWatcher;
+use orangebox_application::services::{ArchiveService, RecorderService};
+use orangebox_infrastructure::sqlite::SqliteArchive;
+use orangebox_infrastructure::watcher::FsWatcher;
 use tiny_http::{Header, Response, Server};
 
 use crate::dto::{HitDto, StatusDto, SummaryDto, TranscriptDto};
@@ -108,14 +108,14 @@ fn spawn_recorder(db_path: PathBuf) {
     });
 }
 
-pub fn serve(db_path: PathBuf, port: u16) -> blackbox_application::Result<()> {
+pub fn serve(db_path: PathBuf, port: u16) -> orangebox_application::Result<()> {
     let archive = ArchiveService::new(SqliteArchive::open(&db_path)?);
     spawn_recorder(db_path);
 
     let addr = format!("127.0.0.1:{port}");
     let server = Server::http(&addr)
-        .map_err(|e| blackbox_application::ArchiveError::Storage(format!("bind {addr}: {e}")))?;
-    println!("Blackbox UI: http://{addr}  (recording in background · ctrl-c to stop)");
+        .map_err(|e| orangebox_application::ArchiveError::Storage(format!("bind {addr}: {e}")))?;
+    println!("Orangebox UI: http://{addr}  (recording in background · ctrl-c to stop)");
 
     for request in server.incoming_requests() {
         let url = request.url().to_string();

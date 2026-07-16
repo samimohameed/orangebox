@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use blackbox_domain::{Message, Session};
+use orangebox_domain::{Message, Session};
 
 use crate::ports::{
     ArchiveRepository, ArchiveStats, SearchHit, SessionSummary, ToolAdapter,
@@ -119,6 +119,19 @@ impl<R: ArchiveRepository> ArchiveService<R> {
         self.repo.stats()
     }
 
+    /// Retention: drop sessions idle for more than `keep_days` days.
+    /// Explicit and manual by design — an archive that silently deletes
+    /// its own data would defeat the product.
+    pub fn prune(&mut self, keep_days: u32, now_ms: i64) -> Result<(usize, usize)> {
+        if keep_days == 0 {
+            return Err(ArchiveError::InvalidInput(
+                "--keep-days must be at least 1".into(),
+            ));
+        }
+        let cutoff = now_ms - i64::from(keep_days) * 24 * 60 * 60 * 1000;
+        self.repo.prune(cutoff)
+    }
+
     /// A full session transcript, for viewing and recovery.
     pub fn transcript(&self, session_id: &str) -> Result<(Session, Vec<Message>)> {
         self.repo.session_with_messages(session_id)?.ok_or_else(|| {
@@ -145,15 +158,15 @@ impl<R: ArchiveRepository> ArchiveService<R> {
             messages.len()
         ));
         out.push_str(
-            "> Recovered by Blackbox. To restore context, paste the transcript \
+            "> Recovered by Orangebox. To restore context, paste the transcript \
              below into a new session and ask the assistant to continue from it.\n\n---\n\n",
         );
         for m in &messages {
             let speaker = match m.role {
-                blackbox_domain::Role::User => "You",
-                blackbox_domain::Role::Assistant => "Assistant",
-                blackbox_domain::Role::System => "System",
-                blackbox_domain::Role::Tool => "Tool",
+                orangebox_domain::Role::User => "You",
+                orangebox_domain::Role::Assistant => "Assistant",
+                orangebox_domain::Role::System => "System",
+                orangebox_domain::Role::Tool => "Tool",
             };
             out.push_str(&format!("## {speaker}\n\n{}\n\n", m.content.trim()));
         }
@@ -165,7 +178,7 @@ impl<R: ArchiveRepository> ArchiveService<R> {
 mod tests {
     use std::path::PathBuf;
 
-    use blackbox_domain::{Message, Role, Session, ToolKind};
+    use orangebox_domain::{Message, Role, Session, ToolKind};
 
     use super::*;
     use crate::ports::IngestBatch;
@@ -196,6 +209,11 @@ mod tests {
         }
         fn stats(&self) -> Result<ArchiveStats> {
             Ok(ArchiveStats::default())
+        }
+        fn prune(&mut self, older_than_ms: i64) -> Result<(usize, usize)> {
+            let before = self.stored_messages.len();
+            self.stored_messages.retain(|m| m.created_at_ms >= older_than_ms);
+            Ok((0, before - self.stored_messages.len()))
         }
         fn session_with_messages(
             &self,

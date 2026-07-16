@@ -1,5 +1,5 @@
 [package]
-name = "blackbox-domain"
+name = "orangebox-domain"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -107,50 +107,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4388bee8683e3d04af747c73422af53102d2bd24d9eadb6cbc100baef4b43f8"
 
 [[package]]
-name = "blackbox-application"
-version = "0.1.0"
-dependencies = [
- "blackbox-domain",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "blackbox-cli"
-version = "0.1.0"
-dependencies = [
- "blackbox-application",
- "blackbox-domain",
- "blackbox-infrastructure",
- "chrono",
- "clap",
- "serde",
- "serde_json",
- "tiny_http",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "blackbox-domain"
-version = "0.1.0"
-
-[[package]]
-name = "blackbox-infrastructure"
-version = "0.1.0"
-dependencies = [
- "blackbox-application",
- "blackbox-domain",
- "chrono",
- "dirs",
- "notify",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "tracing",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -623,6 +579,50 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "orangebox-application"
+version = "0.1.0"
+dependencies = [
+ "orangebox-domain",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "orangebox-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "orangebox-application",
+ "orangebox-domain",
+ "orangebox-infrastructure",
+ "serde",
+ "serde_json",
+ "tiny_http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "orangebox-domain"
+version = "0.1.0"
+
+[[package]]
+name = "orangebox-infrastructure"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "notify",
+ "orangebox-application",
+ "orangebox-domain",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
 
 [[package]]
 name = "pin-project-lite"

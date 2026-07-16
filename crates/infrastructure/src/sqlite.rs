@@ -1,15 +1,15 @@
 //! SQLite implementation of the `ArchiveRepository` port.
 //!
-//! WAL mode for crash-safety, FTS5 for full-text search. This is Blackbox's
+//! WAL mode for crash-safety, FTS5 for full-text search. This is Orangebox's
 //! own database — tool storage is never written to.
 
 use std::path::Path;
 
-use blackbox_application::ports::{
+use orangebox_application::ports::{
     ArchiveRepository, ArchiveStats, IngestBatch, SearchHit, SessionSummary,
 };
-use blackbox_application::{ArchiveError, Result};
-use blackbox_domain::{Message, Role, Session, ToolKind};
+use orangebox_application::{ArchiveError, Result};
+use orangebox_domain::{Message, Role, Session, ToolKind};
 use rusqlite::{params, Connection};
 
 const SCHEMA_VERSION: i64 = 1;
@@ -296,6 +296,27 @@ impl ArchiveRepository for SqliteArchive {
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(storage_err)?;
         Ok(ArchiveStats { sessions, messages, tools })
+    }
+
+    fn prune(&mut self, older_than_ms: i64) -> Result<(usize, usize)> {
+        let tx = self.conn.transaction().map_err(storage_err)?;
+        // Messages first (the FTS delete trigger fires per row), then the
+        // now-empty sessions.
+        let messages = tx
+            .execute(
+                "DELETE FROM messages WHERE session_id IN
+                 (SELECT id FROM sessions WHERE last_activity_ms < ?1)",
+                params![older_than_ms],
+            )
+            .map_err(storage_err)?;
+        let sessions = tx
+            .execute(
+                "DELETE FROM sessions WHERE last_activity_ms < ?1",
+                params![older_than_ms],
+            )
+            .map_err(storage_err)?;
+        tx.commit().map_err(storage_err)?;
+        Ok((sessions, messages))
     }
 }
 
