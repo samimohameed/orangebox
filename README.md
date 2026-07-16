@@ -3,7 +3,7 @@
 ![CI](https://github.com/samimohameed/orangebox/actions/workflows/ci.yml/badge.svg)
 
 **A flight recorder for AI coding sessions.** Orangebox watches the local
-storage of AI coding tools (Claude Code today; Antigravity, Cursor and
+storage of AI coding tools (Claude Code and Antigravity today; Cursor and
 Copilot next) and journals every conversation into a crash-safe, searchable
 archive — so a power cut, a force-quit, or a tool losing its own history
 never costs you a conversation or an implementation plan again.
@@ -22,8 +22,12 @@ telemetry, and never writes to any tool's storage — it only reads.
 | Cursor | — | planned |
 | VS Code Copilot Chat | — | planned |
 
-**Platform:** macOS today. The core is portable Rust; Windows/Linux need
-only the per-tool storage paths — contributions welcome.
+**Platforms:** macOS (fully supported), Windows and Linux (experimental —
+builds and tests run in CI on all three; the Windows/Linux tool-storage
+paths are best-effort until validated on real installs, see
+[#4](https://github.com/samimohameed/orangebox/issues/4)). The always-on
+recorder uses launchd on macOS, Task Scheduler on Windows, and systemd
+user units on Linux — same `orangebox install` everywhere.
 
 ## Getting started
 
@@ -44,10 +48,10 @@ orangebox install   # always-on: record at login, auto-restart, forever
 orangebox ui        # open http://127.0.0.1:7171 — browse, search, recover
 ```
 
-`scan` is idempotent — run it as often as you like. `install` registers a
-launchd agent so recording survives reboots and crashes without a terminal
-window; check on it with `orangebox doctor`, remove it with
-`orangebox uninstall`.
+`scan` is idempotent — run it as often as you like. `install` registers
+the platform's autostart service (launchd / Task Scheduler / systemd) so
+recording survives reboots and crashes without a terminal window; check on
+it with `orangebox doctor`, remove it with `orangebox uninstall`.
 
 ### Crash-safety, verified
 
@@ -61,7 +65,7 @@ own storage); secret redaction is on the roadmap.
 
 ```sh
 orangebox scan            # backfill: archive every existing session
-orangebox install         # always-on recorder (launchd, starts at login)
+orangebox install         # always-on recorder (starts at login)
 orangebox uninstall       # stop and remove the always-on recorder
 orangebox doctor          # health check: daemon, archive, watch paths
 orangebox watch           # record in the foreground instead

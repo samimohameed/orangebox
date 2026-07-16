@@ -15,7 +15,7 @@ jobs:
       matrix:
         # Adapters are path-gated, so the suite runs anywhere even though
         # the recorded tools are macOS-only today.
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

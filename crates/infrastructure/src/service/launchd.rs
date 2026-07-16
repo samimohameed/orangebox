@@ -78,8 +78,13 @@ fn gui_domain() -> String {
     format!("gui/{uid}")
 }
 
-/// Write the plist and (re)start the agent. Returns the plist path.
-pub fn install(binary: &str) -> Result<PathBuf> {
+/// Where the daemon's logs live.
+pub fn log_hint() -> String {
+    log_path().display().to_string()
+}
+
+/// Write the plist and (re)start the agent.
+pub fn install(binary: &str) -> Result<String> {
     let plist = plist_path()?;
     if let Some(parent) = plist.parent() {
         std::fs::create_dir_all(parent)
@@ -99,7 +104,7 @@ pub fn install(binary: &str) -> Result<PathBuf> {
             String::from_utf8_lossy(&out.stderr).trim()
         )));
     }
-    Ok(plist)
+    Ok(format!("launchd agent: {}", plist.display()))
 }
 
 /// Stop the agent and remove the plist.
