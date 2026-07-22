@@ -116,8 +116,39 @@ Reported: chat in `~/Library/Application Support/Cursor/User/`
 `composer.composerData`. Verify against a real install before building
 the adapter.
 
-## VS Code Copilot Chat (not yet observed on this machine)
+## VS Code Copilot Chat (observed: July 2026, macOS, Windows)
 
-Reported: JSON session files under
-`~/Library/Application Support/Code/User/workspaceStorage/<hash>/chatSessions/`.
-Verify before building the adapter.
+**Locations:**
+- macOS: `~/Library/Application Support/Code/User/workspaceStorage/<hash>/chatSessions/<session-uuid>.json`
+- Windows: `%APPDATA%/Code/User/workspaceStorage/<hash>/chatSessions/<session-uuid>.json`
+- Linux: `~/.config/Code/User/workspaceStorage/<hash>/chatSessions/<session-uuid>.json`
+
+**Workspace Path:**
+Per-workspace root metadata lives in `<hash>/workspace.json` alongside `chatSessions/`. The JSON field `folder` or `workspace` contains the workspace file URI (e.g., `file:///path/to/project`).
+
+**Session JSON Schema:**
+
+| Field | Notes |
+| --- | --- |
+| `sessionId` | Session UUID (= filename stem) |
+| `creationDate` | Unix millis timestamp when session was created |
+| `lastMessageDate` | Unix millis timestamp of last activity |
+| `customTitle` | User-defined or generated chat title (optional) |
+| `requests` | Array of exchange requests |
+
+**Request Object Schema:**
+
+| Field | Notes |
+| --- | --- |
+| `requestId` | Request ID string (`request_...`) |
+| `responseId` | Response ID string (`response_...`) |
+| `timestamp` | Unix millis timestamp for exchange |
+| `message.text` | User request text string |
+| `message.parts` | Optional array of prompt parts (`text`) |
+| `response` | Array of response items |
+
+**Response Items & Text Extraction:**
+- Assistant response items have a `value` string or `content` object holding response text.
+- Items with `"kind": "progressMessage"` represent internal search/tool status updates and are skipped.
+- Text values across non-progress items are concatenated as the assistant's message content.
+
