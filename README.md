@@ -21,7 +21,7 @@ telemetry, and never writes to any tool's storage — it only reads.
 | Claude Code | Full conversations (JSONL journal) | ✅ |
 | Antigravity IDE | Full trajectories: prompts, model reasoning, tool activity, file edits, terminal output | ✅ (trajectories before ~May 2026 use an older format, summaries only) |
 | Cursor | — | planned |
-| VS Code Copilot Chat | — | planned |
+| VS Code Copilot Chat | Full sessions: user requests, assistant responses, workspace linkage | ✅ |
 
 **Platforms:** macOS (fully supported), Windows and Linux (experimental —
 builds and tests run in CI on all three; the Windows/Linux tool-storage

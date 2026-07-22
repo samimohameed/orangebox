@@ -14,6 +14,7 @@ use orangebox_application::ports::ToolAdapter;
 use orangebox_application::services::{ArchiveService, RecorderService};
 use orangebox_infrastructure::adapters::antigravity::AntigravityAdapter;
 use orangebox_infrastructure::adapters::claude_code::ClaudeCodeAdapter;
+use orangebox_infrastructure::adapters::copilot::CopilotAdapter;
 use orangebox_infrastructure::sqlite::SqliteArchive;
 use orangebox_infrastructure::watcher::FsWatcher;
 use chrono::{Local, TimeZone};
@@ -96,7 +97,9 @@ pub(crate) fn adapters() -> Vec<Box<dyn ToolAdapter>> {
     if let Some(antigravity) = AntigravityAdapter::new_default() {
         list.push(Box::new(antigravity));
     }
-    // Phase 4: Cursor, Copilot.
+    if let Some(copilot) = CopilotAdapter::new_default() {
+        list.push(Box::new(copilot));
+    }
     list
 }
 
